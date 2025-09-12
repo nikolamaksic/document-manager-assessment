@@ -8,6 +8,7 @@ from rest_framework.authtoken.views import obtain_auth_token
 
 # API URLS
 urlpatterns = [
+    path('admin/', admin.site.urls),
     # API base url
     path("api/", include("propylon_document_manager.site.api_router")),
     # DRF auth token
