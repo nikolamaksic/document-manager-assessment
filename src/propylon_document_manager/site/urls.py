@@ -5,12 +5,19 @@ from django.urls import include, path
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
 from rest_framework.authtoken.views import obtain_auth_token
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 # API URLS
 urlpatterns = [
     path('admin/', admin.site.urls),
     # API base url
     path("api/", include("propylon_document_manager.site.api_router")),
+    path("api/schema/", SpectacularAPIView.as_view(), name="api-schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="api-schema"),
+        name="api-docs",
+    ),
     # DRF auth token
     path("api-auth/", include("rest_framework.urls")),
     path("auth-token/", obtain_auth_token),

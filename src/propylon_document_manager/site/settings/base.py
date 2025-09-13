@@ -71,12 +71,13 @@ DJANGO_APPS = [
     "django.forms",
 ]
 THIRD_PARTY_APPS = [
-    "rest_framework",
-    "rest_framework.authtoken",
-    "corsheaders",    
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
+    "corsheaders",
+    'drf_spectacular',
+    "rest_framework",
+    "rest_framework.authtoken", 
 ]
 
 LOCAL_APPS = [
@@ -273,6 +274,7 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup

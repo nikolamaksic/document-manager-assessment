@@ -81,6 +81,8 @@ djangorestframework==3.14.0
     # via -r requirements/base.in
 djangorestframework-stubs==3.14.5
     # via -r requirements/local.in
+drf-spectacular==0.28.0
+    # via -r requirements/base.in
 executing==2.0.1
     # via stack-data
 factory-boy==3.3.0
