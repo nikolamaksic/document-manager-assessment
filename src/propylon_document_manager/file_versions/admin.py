@@ -5,7 +5,7 @@ from .models import User
 print("Registering User model with custom UserAdmin in admin.py")
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    ordering = ["username"] #TODO id ili email?
+    ordering = ["username"]
     list_display = ("username", "email", "is_staff", "is_superuser")
     fieldsets = (
         (None, {"fields": ("username", "email", "password")}),

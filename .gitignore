@@ -164,7 +164,8 @@ typings/
 .history/
 
 
-
+# uploads folder
+src/propylon_document_manager/media/uploads/*
 
 
 ### Windows template

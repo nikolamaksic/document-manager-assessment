@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser, PermissionsMixin, BaseUserManager
 from django.db.models import CharField, EmailField
 from django.urls import reverse
@@ -57,7 +57,73 @@ class User(AbstractUser, PermissionsMixin):
         """
         return reverse("user:detail", kwargs={"pk": self.id})
 
+def user_directory_path(instance, filename):
+    # File will be uploaded to 
+    # MEDIA_ROOT/uploads/user_<id>/<filename>
+    user = instance.base_file.owner.username
+    ver = instance.version_number
+    basename, ext = filename.rsplit('.', 1)
+    return f'uploads/user_{user}/{basename}_v{ver}.{ext}'
+
+class FileVersionManager(models.Manager):
+    @transaction.atomic
+    def create(self, *args, **kwargs):
+        base_file = kwargs.get("base_file")
+
+        if base_file is None:
+            # Pop flat arguments used for BaseFile creation
+            file_name = kwargs.pop("file_name", None)
+            owner = kwargs.pop("owner", None)
+
+            if not file_name or not owner:
+                raise ValueError(
+                    "Provide either 'base_file' or both 'file_name' and 'owner'."
+                )
+
+            # Create or get the BaseFile
+            base_file, created = BaseFile.objects.get_or_create(
+                owner=owner,
+                file_name=file_name,
+            )
+            
+        bf = BaseFile.objects.select_for_update().get(pk=base_file.pk)
+
+        # 3) Enforce policy: version = current latest, then bump latest
+        version_number = bf.latest_version_number
+        kwargs["base_file"] = bf
+        kwargs["version_number"] = version_number  # override any provided value
+
+        obj = super().create(*args, **kwargs)
+
+        bf.latest_version_number = version_number + 1
+        bf.save(update_fields=["latest_version_number"])
+
+        return obj
+
+
+
+
+class BaseFile(models.Model):
+    file_name = models.fields.CharField(max_length=512)
+    latest_version_number = models.fields.IntegerField(default=0)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="base_files")
+
+    def __str__(self):
+        return f"{self.file_name} (v{self.latest_version_number}) by {self.owner.username}"
+
 
 class FileVersion(models.Model):
-    file_name = models.fields.CharField(max_length=512)
+    base_file = models.ForeignKey(BaseFile, on_delete=models.CASCADE, related_name="versions")
+    file_content = models.FileField(upload_to=user_directory_path)
     version_number = models.fields.IntegerField()
+    created_at = models.fields.DateTimeField(auto_now_add=True)
+    updated_at = models.fields.DateTimeField(auto_now=True)
+
+    objects = FileVersionManager()
+
+    def __str__(self):
+        return f"{self.base_file.file_name} v{self.version_number}"
+
+    class Meta:
+        unique_together = ('base_file', 'version_number')
+        ordering = ['-version_number']
