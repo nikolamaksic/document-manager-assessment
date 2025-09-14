@@ -55,7 +55,7 @@ class User(AbstractUser, PermissionsMixin):
             str: URL for user detail.
 
         """
-        return reverse("users:detail", kwargs={"pk": self.id})
+        return reverse("user:detail", kwargs={"pk": self.id})
 
 
 class FileVersion(models.Model):

@@ -6,6 +6,7 @@ from django.views import defaults as default_views
 from django.views.generic import TemplateView
 from rest_framework.authtoken.views import obtain_auth_token
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from propylon_document_manager.users.api.views import CreateUserView
 
 # API URLS
 urlpatterns = [
@@ -21,6 +22,11 @@ urlpatterns = [
     # DRF auth token
     path("api-auth/", include("rest_framework.urls")),
     path("auth-token/", obtain_auth_token),
+
+    # User APIs
+    path("api/user/", include(("propylon_document_manager.users.api.urls"), namespace="users")),
+
+
 ]
 
 if settings.DEBUG:
