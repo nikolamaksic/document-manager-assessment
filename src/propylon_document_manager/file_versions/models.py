@@ -1,4 +1,7 @@
+import hashlib
 from django.db import models, transaction
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.contrib.auth.models import AbstractUser, PermissionsMixin, BaseUserManager
 from django.db.models import CharField, EmailField
 from django.urls import reverse
@@ -62,8 +65,18 @@ def user_directory_path(instance, filename):
     # MEDIA_ROOT/uploads/user_<id>/<filename>
     user = instance.base_file.owner.username
     ver = instance.version_number
-    basename, ext = filename.rsplit('.', 1)
+    basename, ext = instance.base_file.file_name.rsplit('.', 1)
     return f'uploads/user_{user}/{basename}_v{ver}.{ext}'
+
+
+def _sha256_stream(fileobj, chunk_size=1024 * 1024):
+    pos = fileobj.tell()
+    fileobj.seek(0)
+    h = hashlib.sha256()
+    for chunk in iter(lambda: fileobj.read(chunk_size), b""):
+        h.update(chunk)
+    fileobj.seek(pos)
+    return h.hexdigest()
 
 class FileVersionManager(models.Manager):
     @transaction.atomic
@@ -100,9 +113,6 @@ class FileVersionManager(models.Manager):
 
         return obj
 
-
-
-
 class BaseFile(models.Model):
     file_name = models.fields.CharField(max_length=512)
     latest_version_number = models.fields.IntegerField(default=0)
@@ -111,12 +121,12 @@ class BaseFile(models.Model):
     def __str__(self):
         return f"{self.file_name} (v{self.latest_version_number}) by {self.owner.username}"
 
-
 class FileVersion(models.Model):
     base_file = models.ForeignKey(BaseFile, on_delete=models.CASCADE, related_name="versions")
     file_content = models.FileField(upload_to=user_directory_path)
     version_number = models.fields.IntegerField()
     created_at = models.fields.DateTimeField(auto_now_add=True)
+    file_hash = models.CharField(max_length=64, db_index=True, editable=False)
     updated_at = models.fields.DateTimeField(auto_now=True)
 
     objects = FileVersionManager()
@@ -127,3 +137,43 @@ class FileVersion(models.Model):
     class Meta:
         unique_together = ('base_file', 'version_number')
         ordering = ['-version_number']
+
+    @property
+    def cas_path(self) -> str:
+        # deterministic path for the blob (no extension, content-addressed)
+        return f"cas/{self.content_hash[:2]}/{self.content_hash[2:4]}/{self.content_hash}"
+
+    def _ensure_cas_storage(self):
+        """
+        Ensure the file is stored at its CAS path and self.file_content points to it.
+        If a blob with the same hash already exists, we just repoint without writing again.
+        """
+        if default_storage.exists(self.cas_path):
+            # De-dup: blob already present, just repoint
+            self.file_content.name = self.cas_path
+            return
+        f = self.file_content
+        if not f.closed:
+            f.open()  # no-op if in-memory
+        f.seek(0)
+        # Save under CAS path
+        default_storage.save(self.cas_path, ContentFile(f.read()))
+        # Point the FileField to the CAS path (now content-addressed)
+        self.file_content.name = self.cas_path
+
+    def save(self, *args, **kwargs):
+        # Require base_file
+        if not self.base_file_id:
+            raise ValueError("base_file must be provided when creating a FileVersion.")
+
+        with transaction.atomic():
+            # Compute content hash from current file object (new or existing)
+            f = self.file_content
+            if not f:
+                raise ValueError("file_content is required.")
+            if not f.closed:
+                f.open()
+            self.content_hash = _sha256_stream(f)
+            # Move/point storage to CAS location (de-duplication)
+            self._ensure_cas_storage()
+            super().save(*args, **kwargs)

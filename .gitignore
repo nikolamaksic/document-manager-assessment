@@ -165,7 +165,7 @@ typings/
 
 
 # uploads folder
-src/propylon_document_manager/media/uploads/*
+src/propylon_document_manager/media/*
 
 
 ### Windows template
