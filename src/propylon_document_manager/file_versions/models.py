@@ -1,6 +1,6 @@
 import hashlib
 from django.db import models, transaction
-from django.core.files.base import ContentFile
+from django.core.files.base import File, ContentFile
 from django.core.files.storage import default_storage
 from django.contrib.auth.models import AbstractUser, PermissionsMixin, BaseUserManager
 from django.db.models import CharField, EmailField
@@ -66,7 +66,7 @@ def user_directory_path(instance, filename):
     user = instance.base_file.owner.username
     ver = instance.version_number
     basename, ext = instance.base_file.file_name.rsplit('.', 1)
-    return f'uploads/user_{user}/{basename}_v{ver}.{ext}'
+    return f'uploads/'
 
 
 def _sha256_stream(fileobj, chunk_size=1024 * 1024):
@@ -121,6 +121,10 @@ class BaseFile(models.Model):
     def __str__(self):
         return f"{self.file_name} (v{self.latest_version_number}) by {self.owner.username}"
 
+def _cas_path(hash_hex: str) -> str:
+    # shard directories to avoid huge folders
+    return f"cas/{hash_hex[:2]}/{hash_hex[2:4]}/{hash_hex}"
+
 class FileVersion(models.Model):
     base_file = models.ForeignKey(BaseFile, on_delete=models.CASCADE, related_name="versions")
     file_content = models.FileField(upload_to=user_directory_path)
@@ -140,40 +144,50 @@ class FileVersion(models.Model):
 
     @property
     def cas_path(self) -> str:
-        # deterministic path for the blob (no extension, content-addressed)
-        return f"cas/{self.content_hash[:2]}/{self.content_hash[2:4]}/{self.content_hash}"
+        return _cas_path(self.file_hash)
 
     def _ensure_cas_storage(self):
         """
-        Ensure the file is stored at its CAS path and self.file_content points to it.
-        If a blob with the same hash already exists, we just repoint without writing again.
+        Ensure the blob is stored exactly once at its CAS path and the FileField points to it.
+        If a blob with the same hash already exists, only repoint (no second write).
         """
+        # Blob already present? Just repoint and mark committed.
         if default_storage.exists(self.cas_path):
-            # De-dup: blob already present, just repoint
             self.file_content.name = self.cas_path
             return
+
+        # Save once to CAS
         f = self.file_content
         if not f.closed:
-            f.open()  # no-op if in-memory
+            f.open()
         f.seek(0)
-        # Save under CAS path
-        default_storage.save(self.cas_path, ContentFile(f.read()))
-        # Point the FileField to the CAS path (now content-addressed)
+        default_storage.save(self.cas_path, File(f))
         self.file_content.name = self.cas_path
-
+    
     def save(self, *args, **kwargs):
-        # Require base_file
         if not self.base_file_id:
             raise ValueError("base_file must be provided when creating a FileVersion.")
 
-        with transaction.atomic():
-            # Compute content hash from current file object (new or existing)
-            f = self.file_content
-            if not f:
-                raise ValueError("file_content is required.")
-            if not f.closed:
-                f.open()
-            self.content_hash = _sha256_stream(f)
-            # Move/point storage to CAS location (de-duplication)
-            self._ensure_cas_storage()
-            super().save(*args, **kwargs)
+        f = self.file_content
+        if not f:
+            raise ValueError("file_content is required.")
+        if not f.closed:
+            f.open()
+
+        # first
+        self.file_hash = _sha256_stream(f)
+        cas_path = _cas_path(self.file_hash)
+
+        # ensure one CAS
+        if default_storage.exists(cas_path):
+            # de-dup → just repoint
+            self.file_content.name = cas_path
+        else:
+            # write once to CAS
+            f.seek(0)
+            default_storage.save(cas_path, File(f))
+            self.file_content.name = cas_path
+
+        self.file_content._committed = True
+
+        return super().save(*args, **kwargs)

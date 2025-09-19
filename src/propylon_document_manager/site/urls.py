@@ -7,6 +7,7 @@ from django.views.generic import TemplateView
 from rest_framework.authtoken.views import obtain_auth_token
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from propylon_document_manager.users.api.views import CreateUserView
+import propylon_document_manager.site.api_router as router
 
 # API URLS
 urlpatterns = [
@@ -24,8 +25,9 @@ urlpatterns = [
     path("auth-token/", obtain_auth_token),
 
     # User APIs
-    path("api/user/", include(("propylon_document_manager.users.api.urls"), namespace="users")),
+    # path("api/user/", include(("propylon_document_manager.users.api.urls"), namespace="users")),
 
+    *router.urlpatterns,
 
 ]
 
