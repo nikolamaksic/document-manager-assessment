@@ -14,27 +14,14 @@ class BaseFileSerializer(serializers.ModelSerializer):
             "latest_revision_number",
         ]
 
-    def get_document_url(self, obj: BaseFile) -> str:
-        # Base URL always serves the latest version
-        return _normalize_doc_path(obj.file_name)
-
-    def get_latest_revision_number(self, obj: BaseFile) -> int:
-        # latest_version_number is the "next" number; latest actual stored is -1
-        return max(0, obj.latest_version_number - 1)
-
-
 class FileVersionSerializer(serializers.ModelSerializer):
-    # Read helpers
     file_version_url = serializers.SerializerMethodField()
     file_path = serializers.SerializerMethodField()
-    # When reading, pull from BaseFile; when writing, accept plain text
     file_name = serializers.CharField(source="base_file.file_name", required=True, write_only=False)
-    # Accept the uploaded file for creation
     file = serializers.FileField(source="file_content", write_only=True)
 
     class Meta:
         model = FileVersion
-        # include all fields you want to expose
         fields = [
             "id",
             "file_name",

@@ -24,8 +24,8 @@ urlpatterns = [
     path("api-auth/", include("rest_framework.urls")),
     path("auth-token/", obtain_auth_token),
 
-    # User APIs
-    # path("api/user/", include(("propylon_document_manager.users.api.urls"), namespace="users")),
+    # User APIs - (only enabled if some extra user management is needed)
+    path("api/user/", include(("propylon_document_manager.users.api.urls"), namespace="users")),
 
     *router.urlpatterns,
 

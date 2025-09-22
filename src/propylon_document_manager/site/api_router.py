@@ -13,11 +13,6 @@ if settings.DEBUG:
 else:
     router = SimpleRouter(trailing_slash=False)
 
-
-# router.register("file_versions", FileVersionViewSet, basename="fileversion")
-
-
-# existing
 documents_view = FileVersionViewSet.as_view({
     "get": "retrieve_document", 
     "post": "create_document_version", 
