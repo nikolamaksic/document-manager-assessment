@@ -78,6 +78,8 @@ ENV/
 # mypy
 .mypy_cache/
 
+# evnironment variables
+.env
 
 ### Node template
 # Logs
@@ -162,7 +164,8 @@ typings/
 .history/
 
 
-
+# uploads folder
+src/propylon_document_manager/media/*
 
 
 ### Windows template

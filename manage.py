@@ -26,6 +26,6 @@ if __name__ == "__main__":
     # This allows easy placement of apps within the interior
     # propylon_document_manager directory.
     current_path = Path(__file__).parent.resolve()
-    sys.path.append(str(current_path / "propylon_document_manager"))
+    sys.path.append(str(current_path / "src"))
 
     execute_from_command_line(sys.argv)
