@@ -21,6 +21,8 @@ documents_view = FileVersionViewSet.as_view({
 documents_mine_view = FileVersionViewSet.as_view({"get": "list_available_files"})
 documents_diff_view = FileVersionViewSet.as_view({"get": "diff_file_versions"})
 
+app_name = "file_versions"
+
 urlpatterns = [
     path("documents/mine", documents_mine_view, name="documents-mine"),
     re_path(r"^documents/diff/(?P<path>.+)$", documents_diff_view, name="documents-diff"),
